@@ -143,23 +143,29 @@ today = x.strftime("%Y-%m-%d")
 notify_msg ="======Certificate Expiring Soon======\n"
 notify_e_msg ="\n\n======Expired Certificates======\n"
 
+#checks for valid notification
+notify_chk=0
+
 for index, row in dfs.iterrows():
     row_date = pd.to_datetime(row['Date'])
     today = pd.to_datetime(today)
     diff_days = row_date - today
+    row_exp_date = row_date.date()
     row_cert = row['Name']
     row_env = str(row['Environment'])
     row_sol = str(row['Solution'])
     row_side = str(row['Client-side or server-side?'])
     row_cust = str(row['Customer-specific?'])
     row_report = str(row['Reported by'])
+    row_purpose = str(row['Purpose'])
 
     days = diff_days.days
 
     # check for certificate expiring in 45 days and open monday item
-    if (days == 45) and (days > 0):
+    if (days == 45):
+        notify_chk += 1 #counts notifications
         if (row_cert == ""):
-            notify_msg_45 = "No Certificate"
+            notify_msg_45 = "No Certificate name"
         else:
             notify_msg_45 = "Expires in " + str(days) + " days ==> " + row_cert + ".\n" \
             "\t\t--info--\n" \
@@ -173,10 +179,14 @@ for index, row in dfs.iterrows():
             #print(notify_msg_45)
             send_slack_alert(notify_msg_45)
             create_monday_entry(row_cert, row_sol, row_exp_date,row_cust,row_purpose) # creates entry on monday.com
-            #print("Monday Entry successful")
 
-    if (days != 45):
+    else:
         notify_msg_not45 = "No Certificate expiring in 45 days"
 
 #print(notify_msg_not45)
-send_slack_alert(notify_msg_not45)
+if (notify_chk==0): #print no notification message if count is zero
+    send_slack_alert(notify_msg_not45)
+
+#delete file
+os.remove(dst_repo)
+# -------------------------------
