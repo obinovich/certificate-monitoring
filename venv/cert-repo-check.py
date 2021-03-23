@@ -71,6 +71,7 @@ output.write(req.content)
 output.close()
 print("New File copy complete")
 
+# function to send slack message
 def send_slack_alert(description):
     try:
         # secret
@@ -90,7 +91,44 @@ def send_slack_alert(description):
         error = 'error sending Slack : {}'.format(e)
         print(error)
 
+# function to post on monday board
+def create_monday_entry(cert,env,exp_date,cust,purpose):
+    env=env.upper().strip()
 
+    exp_date=str(exp_date)
+    #print(exp_date)
+
+    # sample monday-board_id=1112227615
+    group_id=""
+
+    if (env == 'env1'):
+        group_id = 'env1_certificate'
+    elif (env == 'env2'):
+        group_id = 'env2_certificate'
+    else:
+        group_id = 'other_certificate'
+
+    apiKey = "[apikey chars]"
+    apiUrl = "https://api.monday.com/v2"
+    headers = {"Authorization": apiKey}
+
+    query5 = 'mutation ($myItemName: String!, $columnVals: JSON!) { create_item (board_id:1112227615, group_id:' + group_id + ' ,item_name:$myItemName, column_values:$columnVals) { id } }'
+    vars = {
+        'myItemName': cert,
+        'columnVals': json.dumps({
+            'status': {'label': 'To Start'},
+            'date4': {'date': exp_date},
+            'text4': cust,
+            'text6': purpose
+        })
+    }
+
+    data = {'query': query5, 'variables': vars}
+    r = requests.post(url=apiUrl, json=data, headers=headers)  # make request
+    print(r.json())
+
+        
+        
 df = pd.read_excel (dst_repo)
 #print (df)
 
@@ -118,41 +156,27 @@ for index, row in dfs.iterrows():
 
     days = diff_days.days
 
-    # check for certificate expiring soon
-    if (days == 45 or days == 30 or days <= 15) and (days > 0):
+    # check for certificate expiring in 45 days and open monday item
+    if (days == 45) and (days > 0):
         if (row_cert == ""):
-            notify_msg = "No Certificate"
+            notify_msg_45 = "No Certificate"
         else:
-            notify_msg = notify_msg + "Expires in " + str(days) + " days ==> "+ row_cert +".\n"\
-            "\t\t--info--\n"\
-            "\t\tEnvironment = "+row_env+"\n"\
-            "\t\tSolution = "+row_sol+"\n" \
-            "\t\tRole = "+row_side+"\n" \
-            "\t\tCustomer-Specific = "+row_cust+"\n" \
-            "\t\tReport by = "+row_report+"\n" \
+            notify_msg_45 = "Expires in " + str(days) + " days ==> " + row_cert + ".\n" \
+            "\t\t--info--\n" \
+            "\t\tEnvironment = " + row_env + "\n" \
+            "\t\tSolution = " + row_sol + "\n" \
+            "\t\tRole = " + row_side + "\n" \
+            "\t\tCustomer-Specific = " + row_cust + "\n" \
+            "\t\tPurpose = " + row_purpose + "\n" \
+            "\t\tReport by = " + row_report + "\n" \
             "\t\t--------\n"
+            #print(notify_msg_45)
+            send_slack_alert(notify_msg_45)
+            create_monday_entry(row_cert, row_sol, row_exp_date,row_cust,row_purpose) # creates entry on monday.com
+            #print("Monday Entry successful")
 
-    #check for expired certificate
-    if (days < 1) and (days >= -30):
-        if (row_cert==""):
-            notify_e_msg="No Certificate"
-        else:
-            notify_e_msg = notify_e_msg + row_cert + " expired " + str(abs(days)) + " days ago.\n"\
-            "\t\t--info--\n"\
-            "\t\tEnvironment = "+row_env+"\n"\
-            "\t\tSolution = "+row_sol+"\n" \
-            "\t\tRole = "+row_side+"\n" \
-            "\t\tCustomer-Specific = "+row_cust+"\n" \
-            "\t\tReport by = "+row_report+"\n" \
-            "\t\t--------\n"
+    if (days != 45):
+        notify_msg_not45 = "No Certificate expiring in 45 days"
 
-
-print(notify_msg)
-print(notify_e_msg)
-
-send_slack_alert(notify_msg)
-send_slack_alert(notify_e_msg)
-
-#delete file
-os.remove(dst_repo)
-# -------------------------------
+#print(notify_msg_not45)
+send_slack_alert(notify_msg_not45)
